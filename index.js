@@ -94,14 +94,20 @@ app.get('/', async (request, response) => {
     let cookies = await client.send('Network.getAllCookies');
     //let localStorage = await page.evaluate(() => { return {...localStorage}; });
     // ^- prettier, but we've got to truncate things for sanity:
-    let localStorage = await page.evaluate(() => {
-      let tmpObj = {};
-      let keys = Object.keys(localStorage);
-      for (let i = 0; i < keys.length; ++i) {
-        tmpObj[keys[i].substring(0,100)] = localStorage.getItem(keys[i]).substring(0,100);
-      }
-      return tmpObj;
-    });
+    let localStorageData = {};
+    try {
+      localStorageData = await page.evaluate(() => {
+        let tmpObj = {};
+        let keys = Object.keys(localStorage);
+        for (let i = 0; i < keys.length; ++i) {
+          tmpObj[keys[i].substring(0,100)] = localStorage.getItem(keys[i]).substring(0,100);
+        }
+        return tmpObj;
+      });
+    } catch (err) {
+      console.log("Accessing localStorage failed. This shouldn't happen. Error:");
+      console.log(err);
+    }
 
     let title = await page.title();
     let finalUrl = await page.url();
@@ -124,7 +130,7 @@ app.get('/', async (request, response) => {
           'status': responseStatus,
           'remote_address': pageResponse.remoteAddress(),
           'cookies': cookies.cookies,
-          'localStorage': localStorage,
+          'localStorage': localStorageData,
           'security_info': securityInfo,
           'content': content.substring(0, 5000000) // upper limit for sanity
         };
