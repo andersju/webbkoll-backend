@@ -4,6 +4,7 @@ const express = require('express');
 const puppeteer = require('puppeteer');
 const {URL} = require('url');
 const log4js = require('log4js');
+const psl = require('psl');
 log4js.configure({
   appenders: {
     out: {type: 'stdout'},
@@ -27,7 +28,7 @@ app.get('/', async (request, response) => {
 
   try {
     const parsedUrl = new URL(request.query.fetch_url);
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    if (!['http:', 'https:'].includes(parsedUrl.protocol) || !(psl.parse(parsedUrl.hostname).listed)) {
       return response.status(500).type('application/json').send(JSON.stringify({
         'success': false,
         'reason': 'Failed to fetch this URL: invalid URL',
@@ -110,13 +111,19 @@ app.get('/', async (request, response) => {
     }
 
     let title = await page.title();
+
+    // TOOD: Use request interception to make sure we never try to load URLs that are IP addresses
+    // or that have an unlisted TLD (specifically after redirect from valid URL)
     let finalUrl = await page.url();
+    let parsedUrl = new URL(finalUrl);
+    let isValidUrl = psl.parse(parsedUrl.hostname).listed;
+
     let responseHeaders = pageResponse.headers();
     let responseStatus = pageResponse.status();
 
     let webbkollStatus = 200;
     let results = {};
-    if (responseStatus >= 200 && responseStatus <= 299) {
+    if (responseStatus >= 200 && responseStatus <= 299 && isValidUrl) {
       // TODO: Use response interception when available
       // (https://github.com/GoogleChrome/puppeteer/issues/1191)
       if (responseHeaders['content-type'].startsWith('text/html') || responseHeaders['content-type'].startsWith('application/xhtml+xml')) {
@@ -142,6 +149,13 @@ app.get('/', async (request, response) => {
         };
         webbkollStatus = 500;
       }
+    } else if (!isValidUrl) {
+      logger.warn('Failed checking ' + url + ': ' + responseStatus);
+      results = {
+        'success': false,
+        'reason': 'Invalid URL.',
+      };
+      webbkollStatus = 500;
     } else {
       logger.warn('Failed checking ' + url + ': ' + responseStatus);
       results = {
