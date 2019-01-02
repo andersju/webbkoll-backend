@@ -43,7 +43,7 @@ app.get('/', async (request, response) => {
 
   logger.info('Trying ' + url);
 
-  const timeout = request.query.timeout || 15000;
+  const timeout = request.query.timeout || 25000;
   const browser = await puppeteer.launch({headless: true});
   const viewport = {
     width: 1920,
@@ -73,20 +73,11 @@ app.get('/', async (request, response) => {
       securityInfo = state;
     });
 
-    /*
-    let requests = [];
-    page.on('request', (request) => {
-      requests.push({
-        'url': request.url(),
-        'method': request.method(),
-        'headers': request.headers()
-      });
-    });
-    */
-
-    // On some broken pages the load event is never fired, so we don't wait for that
+    // On some broken pages neither the load event nor the DOMContentLoaded event are ever fired,
+    // so only waut until networkidle2 ("consider navigation to be finished when there are no
+    // more than 2 network connections for at least 500 ms")
     const pageResponse = await page.goto(url, {
-      waitUntil: ['domcontentloaded', 'networkidle2'],
+      waitUntil: ['networkidle2'],
       timeout: timeout,
     });
 
