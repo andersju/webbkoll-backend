@@ -2,9 +2,11 @@
 
 const express = require('express');
 const puppeteer = require('puppeteer');
+const {TimeoutError} = require('puppeteer/Errors');
 const {URL} = require('url');
 const log4js = require('log4js');
 const psl = require('psl');
+
 log4js.configure({
   appenders: {
     out: {type: 'stdout'},
@@ -73,13 +75,27 @@ app.get('/', async (request, response) => {
       securityInfo = state;
     });
 
-    // On some broken pages neither the load event nor the DOMContentLoaded event are ever fired,
-    // so only waut until networkidle2 ("consider navigation to be finished when there are no
-    // more than 2 network connections for at least 500 ms")
-    const pageResponse = await page.goto(url, {
-      waitUntil: ['networkidle2'],
-      timeout: timeout,
-    });
+    // On some broken pages neither the load event nor the DOMContentLoaded
+    // event are ever fired, so it's normally best to only wait until
+    // networkidle2 ("consider navigation to be finished when there are no
+    // more than 2 network connections for at least 500 ms"). However, that
+    // breaks some other pages where waiting for DOMContentLoaded first is more
+    // appropriate. Ugly workaround: try both, if necessary!
+    let pageResponse;
+    try {
+      pageResponse = await page.goto(url, {
+        waitUntil: ['domcontentloaded', 'networkidle2'],
+        timeout: timeout,
+      });
+    } catch (err) {
+      if (err instanceof TimeoutError) {
+        logger.info('First try of ' + url + ' timed out; trying with just networkidle2');
+        pageResponse = await page.goto(url, {
+          waitUntil: ['networkidle2'],
+          timeout: timeout,
+        });
+      }
+    }
 
     let content = await page.content();
     // Necessary to get *ALL* cookies
