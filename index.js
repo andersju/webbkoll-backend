@@ -133,7 +133,7 @@ app.get('/', async (request, response) => {
     if (responseStatus >= 200 && responseStatus <= 299 && isValidUrl) {
       // TODO: Use response interception when available
       // (https://github.com/GoogleChrome/puppeteer/issues/1191)
-      if (responseHeaders['content-type'].startsWith('text/html') || responseHeaders['content-type'].startsWith('application/xhtml+xml')) {
+      if (responseHeaders['content-type'] && (responseHeaders['content-type'].startsWith('text/html') || responseHeaders['content-type'].startsWith('application/xhtml+xml'))) {
         logger.info('Successfully checked ' + url);
         results = {
           'success': true,
