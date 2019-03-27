@@ -25,11 +25,15 @@ const logger = log4js.getLogger();
 const PORT = process.env.PORT || 8100;
 const app = express();
 
+function urldecode(url) {
+  return decodeURIComponent(url.replace(/\+/g, ' '));
+}
+
 app.get('/', async (request, response) => {
-  const url = request.query.fetch_url;
+  const url = urldecode(request.query.fetch_url);
 
   try {
-    const parsedUrl = new URL(request.query.fetch_url);
+    const parsedUrl = new URL(urldecode(request.query.fetch_url));
     if (!['http:', 'https:'].includes(parsedUrl.protocol) || !(psl.parse(parsedUrl.hostname).listed)) {
       return response.status(500).type('application/json').send(JSON.stringify({
         'success': false,
