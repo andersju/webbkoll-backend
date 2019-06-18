@@ -11,11 +11,11 @@
     "express": "^4.16.4",
     "log4js": "^3.0.6",
     "psl": "^1.1.31",
-    "puppeteer": "1.12.2"
+    "puppeteer": "1.17.0"
   },
   "devDependencies": {
-    "eslint": "^5.14.1",
-    "eslint-config-google": "^0.9.1"
+    "eslint": "^5.16.0",
+    "eslint-config-google": "^0.13.0"
   },
   "license": "MIT"
 }
