@@ -9,9 +9,11 @@
   },
   "dependencies": {
     "express": "^4.16.4",
+    "ip": "^1.1.5",
     "log4js": "^3.0.6",
     "psl": "^1.1.31",
-    "puppeteer": "1.17.0"
+    "puppeteer": "1.17.0",
+    "tldjs": "^2.3.1"
   },
   "devDependencies": {
     "eslint": "^5.16.0",

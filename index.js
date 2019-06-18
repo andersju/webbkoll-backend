@@ -6,6 +6,8 @@ const {TimeoutError} = require('puppeteer/Errors');
 const {URL} = require('url');
 const log4js = require('log4js');
 const psl = require('psl');
+const tldjs = require('tldjs');
+const ip = require('ip');
 
 log4js.configure({
   appenders: {
@@ -23,6 +25,7 @@ log4js.configure({
 const logger = log4js.getLogger();
 
 const PORT = process.env.PORT || 8100;
+const WEBBKOLL_ENV = process.env.WEBBKOLL_ENV || 'prod';
 const app = express();
 
 function urldecode(url) {
@@ -63,6 +66,19 @@ app.get('/', async (request, response) => {
 
     await page.setViewport(viewport);
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3803.0 Safari/537.36');
+
+    if (WEBBKOLL_ENV != 'dev') {
+      await page.setRequestInterception(true);
+      page.on('request', interceptedRequest => {
+        let parsedUrl = tldjs.parse(interceptedRequest.url());
+        // Unless in dev mode, don't allow requests to private IPs or to domains with non-existent TLDs
+        if ((parsedUrl.isIp && ip.isPrivate(parsedUrl.hostname)) || (!parsedUrl.isIp && !parsedUrl.tldExists)) {
+          interceptedRequest.abort();
+        } else {
+          interceptedRequest.continue();
+        }
+      });
+    }
 
     let responses = [];
     page.on('response', (response) => {
@@ -125,8 +141,6 @@ app.get('/', async (request, response) => {
 
     let title = await page.title();
 
-    // TOOD: Use request interception to make sure we never try to load URLs that are IP addresses
-    // or that have an unlisted TLD (specifically after redirect from valid URL)
     let finalUrl = await page.url();
     let parsedUrl = new URL(finalUrl);
     let isValidUrl = psl.parse(parsedUrl.hostname).listed;
