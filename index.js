@@ -68,9 +68,10 @@ app.get('/', async (request, response) => {
 
     if (WEBBKOLL_ENV != 'dev') {
       await page.setRequestInterception(true);
-      page.on('request', interceptedRequest => {
-        let parsedUrl = tldjs.parse(interceptedRequest.url());
-        // Unless in dev mode, don't allow requests to private IPs or to domains with non-existent TLDs
+      page.on('request', (interceptedRequest) => {
+        const parsedUrl = tldjs.parse(interceptedRequest.url());
+        // Unless in dev mode, don't allow requests to private IPs or to
+        // domains with non-existent TLDs
         if ((parsedUrl.isIp && ip.isPrivate(parsedUrl.hostname)) || (!parsedUrl.isIp && !parsedUrl.tldExists)) {
           interceptedRequest.abort();
         } else {
@@ -79,18 +80,18 @@ app.get('/', async (request, response) => {
       });
     }
 
-    let responses = [];
+    const responses = [];
     page.on('response', (response) => {
       responses.push({
         'url': response.url(),
         'remote_address': response.remoteAddress(),
-        'headers': response.headers()
+        'headers': response.headers(),
       });
     });
 
     await client.send('Security.enable');
     let securityInfo = {};
-    client.on('Security.securityStateChanged', state => {
+    client.on('Security.securityStateChanged', (state) => {
       securityInfo = state;
     });
 
@@ -108,44 +109,44 @@ app.get('/', async (request, response) => {
       });
     } catch (err) {
       if (err instanceof TimeoutError) {
-        logger.info('First try of ' + url + ' timed out; trying with just networkidle2');
+        logger.info(`First try of ${url} timed out; trying with just networkidle2`);
         pageResponse = await page.goto(url, {
           waitUntil: ['networkidle2'],
           timeout: timeout,
         });
       } else {
-        throw(err)
+        throw (err);
       }
     }
 
-    let content = await page.content();
+    const content = await page.content();
     // Necessary to get *ALL* cookies
-    let cookies = await client.send('Network.getAllCookies');
-    //let localStorage = await page.evaluate(() => { return {...localStorage}; });
+    const cookies = await client.send('Network.getAllCookies');
+    // let localStorage = await page.evaluate(() => { return {...localStorage}; });
     // ^- prettier, but we've got to truncate things for sanity:
     let localStorageData = {};
     try {
       localStorageData = await page.evaluate(() => {
-        let tmpObj = {};
-        let keys = Object.keys(localStorage);
+        const tmpObj = {};
+        const keys = Object.keys(localStorage);
         for (let i = 0; i < keys.length; ++i) {
-          tmpObj[keys[i].substring(0,100)] = localStorage.getItem(keys[i]).substring(0,100);
+          tmpObj[keys[i].substring(0, 100)] = localStorage.getItem(keys[i]).substring(0, 100);
         }
         return tmpObj;
       });
     } catch (err) {
-      console.log("Accessing localStorage failed. This shouldn't happen. Error:");
+      console.log(`Accessing localStorage failed. This shouldn't happen. Error:`);
       console.log(err);
     }
 
-    let title = await page.title();
+    const title = await page.title();
 
-    let finalUrl = await page.url();
-    let parsedUrl = new URL(finalUrl);
-    let isValidUrl = tldjs.parse(parsedUrl.hostname).tldExists;
+    const finalUrl = await page.url();
+    const parsedUrl = new URL(finalUrl);
+    const isValidUrl = tldjs.parse(parsedUrl.hostname).tldExists;
 
-    let responseHeaders = pageResponse.headers();
-    let responseStatus = pageResponse.status();
+    const responseHeaders = pageResponse.headers();
+    const responseStatus = pageResponse.status();
 
     let webbkollStatus = 200;
     let results = {};
@@ -153,7 +154,7 @@ app.get('/', async (request, response) => {
       // TODO: Use response interception when available
       // (https://github.com/GoogleChrome/puppeteer/issues/1191)
       if (responseHeaders['content-type'] && (responseHeaders['content-type'].startsWith('text/html') || responseHeaders['content-type'].startsWith('application/xhtml+xml'))) {
-        logger.info('Successfully checked ' + url);
+        logger.info(`Successfully checked ${url}`);
         results = {
           'success': true,
           'input_url': url,
@@ -165,10 +166,10 @@ app.get('/', async (request, response) => {
           'cookies': cookies.cookies,
           'localStorage': localStorageData,
           'security_info': securityInfo,
-          'content': content.substring(0, 5000000) // upper limit for sanity
+          'content': content.substring(0, 5000000), // upper limit for sanity
         };
       } else {
-        logger.warn('Failed checking ' + url + ': ' + responseStatus);
+        logger.warn(`Failed checking ${url}: ${responseStatus}`);
         results = {
           'success': false,
           'reason': 'Page does not have text/html Content-Type',
@@ -176,17 +177,17 @@ app.get('/', async (request, response) => {
         webbkollStatus = 500;
       }
     } else if (!isValidUrl) {
-      logger.warn('Failed checking ' + url + ': ' + responseStatus);
+      logger.warn(`Failed checking ${url}: ${responseStatus}`);
       results = {
         'success': false,
         'reason': 'Invalid URL.',
       };
       webbkollStatus = 500;
     } else {
-      logger.warn('Failed checking ' + url + ': ' + responseStatus);
+      logger.warn(`Failed checking ${url}: ${responseStatus}`);
       results = {
         'success': false,
-        'reason': 'Failed to fetch this URL: ' + responseStatus + ' (' + title + ')',
+        'reason': `Failed to fetch this URL: ${responseStatus} (${title})`,
       };
       webbkollStatus = 500;
     }
@@ -194,14 +195,14 @@ app.get('/', async (request, response) => {
     response.status(webbkollStatus).type('application/json').send(JSON.stringify(results));
     await context.close();
   } catch (err) {
-    logger.warn('Failed checking ' + url + ': ' + err.toString());
+    logger.warn(`Failed checking ${url}: ${err.toString()}`);
     response.status(500).type('application/json').send(JSON.stringify({
       'success': false,
-      'reason': 'Failed to fetch this URL: ' + err.toString(),
+      'reason': `Failed to fetch this URL: ${err.toString()}`,
     }));
   }
   await browser.close();
-  logger.info('Finished with ' + url);
+  logger.info(`Finished with ${url}`);
 });
 
 app.get('/status', async (request, response) => {
