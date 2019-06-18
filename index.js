@@ -5,7 +5,6 @@ const puppeteer = require('puppeteer');
 const {TimeoutError} = require('puppeteer/Errors');
 const {URL} = require('url');
 const log4js = require('log4js');
-const psl = require('psl');
 const tldjs = require('tldjs');
 const ip = require('ip');
 
@@ -37,7 +36,7 @@ app.get('/', async (request, response) => {
 
   try {
     const parsedUrl = new URL(urldecode(request.query.fetch_url));
-    if (!['http:', 'https:'].includes(parsedUrl.protocol) || !(psl.parse(parsedUrl.hostname).listed)) {
+    if (!['http:', 'https:'].includes(parsedUrl.protocol) || !(tldjs.parse(parsedUrl.hostname).tldExists)) {
       return response.status(500).type('application/json').send(JSON.stringify({
         'success': false,
         'reason': 'Failed to fetch this URL: invalid URL',
@@ -143,7 +142,7 @@ app.get('/', async (request, response) => {
 
     let finalUrl = await page.url();
     let parsedUrl = new URL(finalUrl);
-    let isValidUrl = psl.parse(parsedUrl.hostname).listed;
+    let isValidUrl = tldjs.parse(parsedUrl.hostname).tldExists;
 
     let responseHeaders = pageResponse.headers();
     let responseStatus = pageResponse.status();
