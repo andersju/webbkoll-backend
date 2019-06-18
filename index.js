@@ -62,7 +62,7 @@ app.get('/', async (request, response) => {
     const client = await page.target().createCDPSession();
 
     await page.setViewport(viewport);
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.99 Safari/537.36');
+    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3803.0 Safari/537.36');
 
     let responses = [];
     page.on('response', (response) => {
@@ -98,6 +98,8 @@ app.get('/', async (request, response) => {
           waitUntil: ['networkidle2'],
           timeout: timeout,
         });
+      } else {
+        throw(err)
       }
     }
 
