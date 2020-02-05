@@ -95,12 +95,10 @@ app.get('/', async (request, response) => {
       securityInfo = state;
     });
 
-    // On some broken pages neither the load event nor the DOMContentLoaded
-    // event are ever fired, so it's normally best to only wait until
-    // networkidle2 ("consider navigation to be finished when there are no
-    // more than 2 network connections for at least 500 ms"). However, that
-    // breaks some other pages where waiting for DOMContentLoaded first is more
-    // appropriate. Ugly workaround: try both, if necessary!
+    // Due to broken sites (and possibly Puppeteer bugs), try different
+    // waitUntil parameters. Ugly workarounds ahead.
+    // https://github.com/puppeteer/puppeteer/blob/v2.1.1/docs/api.md#pagegotourl-options
+    // TODO: Fix this mess
     let pageResponse;
     try {
       pageResponse = await page.goto(url, {
@@ -109,15 +107,27 @@ app.get('/', async (request, response) => {
       });
     } catch (err) {
       if (err instanceof TimeoutError) {
-        logger.info(`First try of ${url} timed out; trying with just networkidle2`);
-        pageResponse = await page.goto(url, {
-          waitUntil: ['networkidle2'],
-          timeout: timeout,
-        });
+        try {
+          logger.info(`First try of ${url} timed out; trying with just networkidle2`);
+          pageResponse = await page.goto(url, {
+            waitUntil: ['networkidle2'],
+            timeout: timeout,
+          });
+        } catch (err) {
+          if (err instanceof TimeoutError) {
+            logger.info(`Second try of ${url} timed out; trying with just load`);
+            pageResponse = await page.goto(url, {
+              waitUntil: ['load'],
+              timeout: timeout,
+            });
+          }
+        }
       } else {
         throw (err);
       }
     }
+
+    await page.waitFor(10000);
 
     const content = await page.content();
     // Necessary to get *ALL* cookies
