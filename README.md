@@ -5,7 +5,7 @@ It's a tiny script that makes use of [Puppeteer](https://github.com/GoogleChrome
 It visits a given URL with Chromium and returns JSON with headers, cookies, requests, etc.
 It's not pretty.
 
-Node.js 8.x LTS required. Simply run `npm install`, which should install everything necessary,
+Node 10.18.1+ required. Simply run `npm install`, which should install everything necessary,
 including a local copy of Chromium; and then `npm start` or (`nodejs index.js`) to start.
 Usage: `http://localhost:8100/?fetch_url=http://www.example.com`
 
