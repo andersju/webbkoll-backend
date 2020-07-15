@@ -69,10 +69,15 @@ app.get('/', async (request, response) => {
     if (WEBBKOLL_ENV != 'dev') {
       await page.setRequestInterception(true);
       page.on('request', (interceptedRequest) => {
-        const parsedUrl = tldjs.parse(interceptedRequest.url());
-        // Unless in dev mode, don't allow requests to private IPs or to
-        // domains with non-existent TLDs
-        if ((parsedUrl.isIp && ip.isPrivate(parsedUrl.hostname)) || (!parsedUrl.isIp && !parsedUrl.tldExists)) {
+        const parsedTld = tldjs.parse(interceptedRequest.url());
+        const parsedUrl = new URL(interceptedRequest.url());
+        // Unless in dev mode, don't allow requests to private IPs or to domains with non-existent
+        // TLDs, or to ports other than 80 or 443
+        if (
+          (parsedTld.isIp && ip.isPrivate(parsedTld.hostname)) ||
+          (!parsedTld.isIp && !parsedTld.tldExists) ||
+          (parsedUrl.port != '' && ! ['80', '443'].includes(parsedUrl.port))
+        ) {
           interceptedRequest.abort();
         } else {
           interceptedRequest.continue();
