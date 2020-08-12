@@ -2,7 +2,7 @@
 
 const express = require('express');
 const puppeteer = require('puppeteer');
-const {TimeoutError} = require('puppeteer/Errors');
+const {TimeoutError} = puppeteer.errors;
 const {URL} = require('url');
 const log4js = require('log4js');
 const tldjs = require('tldjs');
