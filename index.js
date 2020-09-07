@@ -1,8 +1,8 @@
 'use strict';
 
 const express = require('express');
-const puppeteer = require('puppeteer');
-const {TimeoutError} = puppeteer.errors;
+const playwright = require('playwright');
+const {TimeoutError} = playwright.errors;
 const {URL} = require('url');
 const log4js = require('log4js');
 const tldjs = require('tldjs');
@@ -52,25 +52,23 @@ app.get('/', async (request, response) => {
   logger.info('Trying ' + url);
 
   const timeout = request.query.timeout || 25000;
-  const browser = await puppeteer.launch({headless: true});
-  const viewport = {
-    width: 1920,
-    height: 1080,
-  };
+  const browser = await playwright['chromium'].launch();
 
   try {
-    const context = await browser.createIncognitoBrowserContext();
-    const page = await context.newPage();
-    const client = await page.target().createCDPSession();
-
-    await page.setViewport(viewport);
-    await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3803.0 Safari/537.36');
+    const context = await browser.newContext();
+    const page = await context.newPage({
+      viewport: {
+        'width': 1920,
+        'height': 1080
+      },
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36'
+    });
+    const client = await page.context().newCDPSession(page);
 
     if (WEBBKOLL_ENV != 'dev') {
-      await page.setRequestInterception(true);
-      page.on('request', (interceptedRequest) => {
-        const parsedTld = tldjs.parse(interceptedRequest.url());
-        const parsedUrl = new URL(interceptedRequest.url());
+      page.route('**', (route, request) => {
+        const parsedTld = tldjs.parse(request.url());
+        const parsedUrl = new URL(request.url());
         // Unless in dev mode, don't allow requests to private IPs or to domains with non-existent
         // TLDs, or to ports other than 80 or 443
         if (
@@ -78,9 +76,9 @@ app.get('/', async (request, response) => {
           (!parsedTld.isIp && !parsedTld.tldExists) ||
           (parsedUrl.port != '' && ! ['80', '443'].includes(parsedUrl.port))
         ) {
-          interceptedRequest.abort();
+          route.abort();
         } else {
-          interceptedRequest.continue();
+          route.continue();
         }
       });
     }
@@ -89,7 +87,7 @@ app.get('/', async (request, response) => {
     page.on('response', (response) => {
       responses.push({
         'url': response.url(),
-        'remote_address': response.remoteAddress(),
+        //'remote_address': response.remoteAddress(), # FIXME
         'headers': response.headers(),
       });
     });
@@ -100,39 +98,29 @@ app.get('/', async (request, response) => {
       securityInfo = state;
     });
 
-    // Due to broken sites (and possibly Puppeteer bugs), try different
-    // waitUntil parameters. Ugly workarounds ahead.
-    // https://github.com/puppeteer/puppeteer/blob/v2.1.1/docs/api.md#pagegotourl-options
-    // TODO: Fix this mess
+    // Due to broken sites (and possibly Playwright bugs), try a couple of
+    // different waitUntil parameters.
     let pageResponse;
-    try {
-      pageResponse = await page.goto(url, {
-        waitUntil: ['domcontentloaded', 'networkidle2'],
-        timeout: timeout,
-      });
-    } catch (err) {
-      if (err instanceof TimeoutError) {
-        try {
-          logger.info(`First try of ${url} timed out; trying with just networkidle2`);
-          pageResponse = await page.goto(url, {
-            waitUntil: ['networkidle2'],
-            timeout: timeout,
-          });
-        } catch (err) {
-          if (err instanceof TimeoutError) {
-            logger.info(`Second try of ${url} timed out; trying with just load`);
-            pageResponse = await page.goto(url, {
-              waitUntil: ['load'],
-              timeout: timeout,
-            });
-          }
+    for (const waitUntilSetting of ['networkidle', 'domcontentloaded']) {
+      try {
+        pageResponse = await page.goto(url, {
+          waitUntil: waitUntilSetting,
+          timeout: timeout,
+        });
+        break;
+      } catch (err) {
+        if (err instanceof TimeoutError) {
+          logger.info(`First try of ${url} with ${waitUntilSetting} timed out`);
+        } else {
+          throw err;
         }
-      } else {
-        throw (err);
       }
     }
+    if (pageResponse == null) {
+      throw 'Page timeout';
+    }
 
-    await page.waitFor(10000);
+    await page.waitForTimeout(10000);
 
     const content = await page.content();
     // Necessary to get *ALL* cookies
@@ -177,7 +165,7 @@ app.get('/', async (request, response) => {
           'responses': responses,
           'response_headers': responseHeaders,
           'status': responseStatus,
-          'remote_address': pageResponse.remoteAddress(),
+          //'remote_address': pageResponse.remoteAddress(), # FIXME
           'cookies': cookies.cookies,
           'localStorage': localStorageData,
           'security_info': securityInfo,
