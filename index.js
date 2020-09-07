@@ -22,7 +22,6 @@ log4js.configure({
 });
 
 const logger = log4js.getLogger();
-
 const PORT = process.env.PORT || 8100;
 const WEBBKOLL_ENV = process.env.WEBBKOLL_ENV || 'prod';
 const app = express();
@@ -66,7 +65,7 @@ app.get('/', async (request, response) => {
     await page.setViewport(viewport);
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3803.0 Safari/537.36');
 
-    if (WEBBKOLL_ENV != 'dev') {
+    if (WEBBKOLL_ENV !== 'dev') {
       await page.setRequestInterception(true);
       page.on('request', (interceptedRequest) => {
         const parsedTld = tldjs.parse(interceptedRequest.url());
@@ -76,7 +75,7 @@ app.get('/', async (request, response) => {
         if (
           (parsedTld.isIp && ip.isPrivate(parsedTld.hostname)) ||
           (!parsedTld.isIp && !parsedTld.tldExists) ||
-          (parsedUrl.port != '' && ! ['80', '443'].includes(parsedUrl.port))
+          (parsedUrl.port !== '' && ! ['80', '443'].includes(parsedUrl.port))
         ) {
           interceptedRequest.abort();
         } else {
@@ -105,31 +104,22 @@ app.get('/', async (request, response) => {
     // https://github.com/puppeteer/puppeteer/blob/v2.1.1/docs/api.md#pagegotourl-options
     // TODO: Fix this mess
     let pageResponse;
-    try {
-      pageResponse = await page.goto(url, {
-        waitUntil: ['domcontentloaded', 'networkidle2'],
-        timeout: timeout,
-      });
-    } catch (err) {
-      if (err instanceof TimeoutError) {
-        try {
-          logger.info(`First try of ${url} timed out; trying with just networkidle2`);
-          pageResponse = await page.goto(url, {
-            waitUntil: ['networkidle2'],
-            timeout: timeout,
-          });
-        } catch (err) {
-          if (err instanceof TimeoutError) {
-            logger.info(`Second try of ${url} timed out; trying with just load`);
-            pageResponse = await page.goto(url, {
-              waitUntil: ['load'],
-              timeout: timeout,
-            });
-          }
+    for (const waitUntilSetting of [['domcontentloaded', 'networkidle2'], 'networkidle2', 'load']) {
+      try {
+        pageResponse = await page.goto(url, {
+          waitUntil: waitUntilSetting,
+          timeout: timeout,
+        });
+      } catch (err) {
+        if (err instanceof TimeoutError) {
+          logger.info(`${url} timed out`);
+        } else {
+          throw err;
         }
-      } else {
-        throw (err);
       }
+    }
+    if (pageResponse == null) {
+      throw 'Page timeout';
     }
 
     await page.waitFor(10000);
@@ -155,7 +145,6 @@ app.get('/', async (request, response) => {
     }
 
     const title = await page.title();
-
     const finalUrl = await page.url();
     const parsedUrl = new URL(finalUrl);
     const isValidUrl = tldjs.parse(parsedUrl.hostname).tldExists;
@@ -164,11 +153,12 @@ app.get('/', async (request, response) => {
     const responseStatus = pageResponse.status();
 
     let webbkollStatus = 200;
-    let results = {};
+    let results;
     if (responseStatus >= 200 && responseStatus <= 299 && isValidUrl) {
       // TODO: Use response interception when available
       // (https://github.com/GoogleChrome/puppeteer/issues/1191)
-      if (responseHeaders['content-type'] && (responseHeaders['content-type'].startsWith('text/html') || responseHeaders['content-type'].startsWith('application/xhtml+xml'))) {
+      if (responseHeaders['content-type'] && (responseHeaders['content-type'].startsWith('text/html')
+          || responseHeaders['content-type'].startsWith('application/xhtml+xml'))) {
         logger.info(`Successfully checked ${url}`);
         results = {
           'success': true,
