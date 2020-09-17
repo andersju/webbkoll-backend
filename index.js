@@ -122,7 +122,7 @@ app.get('/', async (request, response) => {
       throw 'Page timeout';
     }
 
-    await page.waitFor(10000);
+    await page.waitForTimeout(10000);
 
     const content = await page.content();
     // Necessary to get *ALL* cookies
