@@ -196,8 +196,21 @@ app.get('/', async (request, response) => {
       };
       webbkollStatus = 500;
     }
-
-    response.status(webbkollStatus).type('application/json').send(JSON.stringify(results));
+    // To get rid of characters that could mess up JSON decoders
+    // https://www.ryadel.com/en/javascript-remove-xml-invalid-chars-characters-string-utf8-unicode-regex/
+    const regex = /([^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFC\u{10000}-\u{10FFFF}])/ug;
+    response
+      .status(webbkollStatus)
+      .type('application/json')
+      .send(JSON.stringify(
+        results,
+        (key, val) => {
+          if (typeof val === 'string') {
+            return val.replace(regex, '');
+          }
+          return val;
+        }
+      ));
     await context.close();
   } catch (err) {
     logger.warn(`Failed checking ${url}: ${err.toString()}`);
