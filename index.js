@@ -23,7 +23,6 @@ log4js.configure({
 
 const logger = log4js.getLogger();
 const PORT = process.env.PORT || 8100;
-const WEBBKOLL_ENV = process.env.WEBBKOLL_ENV || 'prod';
 const app = express();
 
 function urldecode(url) {
@@ -32,14 +31,18 @@ function urldecode(url) {
 
 app.get('/', async (request, response) => {
   const url = urldecode(request.query.fetch_url);
+  const validateUrl = request.query.validate_url ? request.query.validate_url !== 'false' : true;
 
   try {
     const parsedUrl = new URL(urldecode(request.query.fetch_url));
-    if (!['http:', 'https:'].includes(parsedUrl.protocol) || !(tldjs.parse(parsedUrl.hostname).tldExists)) {
-      return response.status(500).type('application/json').send(JSON.stringify({
-        'success': false,
-        'reason': 'Failed to fetch this URL: invalid URL',
-      }));
+
+    if (validateUrl) {
+      if (!['http:', 'https:'].includes(parsedUrl.protocol) || !(tldjs.parse(parsedUrl.hostname).tldExists)) {
+        return response.status(500).type('application/json').send(JSON.stringify({
+          'success': false,
+          'reason': 'Failed to fetch this URL: invalid protocol or tld',
+        }));
+      }
     }
   } catch (err) {
     return response.status(500).type('application/json').send(JSON.stringify({
@@ -65,13 +68,14 @@ app.get('/', async (request, response) => {
     await page.setViewport(viewport);
     await page.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3803.0 Safari/537.36');
 
-    if (WEBBKOLL_ENV !== 'dev') {
+    if (validateUrl) {
       await page.setRequestInterception(true);
       page.on('request', (interceptedRequest) => {
         const parsedTld = tldjs.parse(interceptedRequest.url());
         const parsedUrl = new URL(interceptedRequest.url());
-        // Unless in dev mode, don't allow requests to private IPs or to domains with non-existent
-        // TLDs, or to ports other than 80 or 443
+        // Unless explicitly allowed via validate_urls = false, abort requests to
+        // private IPs or to domains with non-existent TLDs, or to ports other
+        // than 80 or 443
         if (
           (parsedTld.isIp && ip.isPrivate(parsedTld.hostname)) ||
           (!parsedTld.isIp && !parsedTld.tldExists) ||
@@ -147,7 +151,7 @@ app.get('/', async (request, response) => {
     const title = await page.title();
     const finalUrl = await page.url();
     const parsedUrl = new URL(finalUrl);
-    const isValidUrl = tldjs.parse(parsedUrl.hostname).tldExists;
+    const isValidUrl = tldjs.parse(parsedUrl.hostname).tldExists || validateUrl === false;
 
     const responseHeaders = pageResponse.headers();
     const responseStatus = pageResponse.status();
