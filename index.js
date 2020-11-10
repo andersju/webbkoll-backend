@@ -116,6 +116,7 @@ app.get('/', async (request, response) => {
           waitUntil: waitUntilSetting,
           timeout: timeout,
         });
+        break;
       } catch (err) {
         if (err instanceof TimeoutError) {
           logger.info(`${url} timed out`);
