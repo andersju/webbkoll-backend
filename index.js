@@ -90,11 +90,13 @@ app.get('/', async (request, response) => {
 
     const responses = [];
     page.on('response', (response) => {
-      responses.push({
-        'url': response.url(),
-        'remote_address': response.remoteAddress(),
-        'headers': response.headers(),
-      });
+      if (response.remoteAddress().ip) {
+        responses.push({
+          'url': response.url(),
+          'remote_address': response.remoteAddress(),
+          'headers': response.headers(),
+        });
+      }
     });
 
     await client.send('Security.enable');
