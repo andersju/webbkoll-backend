@@ -10,7 +10,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "ip": "^1.1.5",
-    "log4js": "^6.1.2",
+    "log4js": "^6.4.0",
     "puppeteer": "^9.0.0",
     "tldjs": "^2.3.1"
   },
