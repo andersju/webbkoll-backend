@@ -99,10 +99,18 @@ app.get('/', async (request, response) => {
       }
     });
 
-    await client.send('Security.enable');
-    let securityInfo = {};
-    client.on('Security.securityStateChanged', (state) => {
-      securityInfo = state;
+    await client.send('Audits.enable');
+    let mixedContent = {}
+    client.on('Audits.issueAdded', (audit) => {
+      if (audit.issue.code == 'MixedContentIssue') {
+        if (['MixedContentBlocked', 'MixedContentWarning'].includes(audit.issue.details.mixedContentIssueDetails.resolutionStatus)) {
+          mixedContent[audit.issue.details.mixedContentIssueDetails.insecureURL] = {
+            resourceType: audit.issue.details.mixedContentIssueDetails.resourceType,
+            mainResourceURL: audit.issue.details.mixedContentIssueDetails.mainResourceURL,
+            resolutionStatus: audit.issue.details.mixedContentIssueDetails.resolutionStatus
+          }
+        }
+      }
     });
 
     // Due to broken sites (and possibly Puppeteer bugs), try different
@@ -131,7 +139,19 @@ app.get('/', async (request, response) => {
       throw 'Page timeout';
     }
 
-    await page.waitForTimeout(10000);
+    let securityInfo = {};
+    if (pageResponse.securityDetails()) {
+      securityInfo = {
+        issuer: pageResponse.securityDetails().issuer(),
+        protocol: pageResponse.securityDetails().protocol(),
+        subjectAlternativeNames: pageResponse.securityDetails().subjectAlternativeNames(),
+        subjectName: pageResponse.securityDetails().subjectName(),
+        validFrom: pageResponse.securityDetails().validFrom(),
+        validTo: pageResponse.securityDetails().validTo(),
+      }
+    }
+
+    await new Promise(r => setTimeout(r, 10000));
 
     const content = await page.content();
     // Necessary to get *ALL* cookies
@@ -180,6 +200,7 @@ app.get('/', async (request, response) => {
           'cookies': cookies.cookies,
           'localStorage': localStorageData,
           'security_info': securityInfo,
+          'mixed_content': mixedContent,
           'content': content.substring(0, 5000000), // upper limit for sanity
         };
       } else {
