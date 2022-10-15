@@ -208,6 +208,7 @@ app.get('/', async (request, response) => {
         results = {
           'success': false,
           'reason': 'Page does not have text/html Content-Type',
+          'response_headers': responseHeaders,
         };
         webbkollStatus = 500;
       }
@@ -223,6 +224,9 @@ app.get('/', async (request, response) => {
       results = {
         'success': false,
         'reason': `Failed to fetch this URL: ${responseStatus} (${title})`,
+        'response_headers': responseHeaders,
+        'response_status': responseStatus,
+        'response_title': title,
       };
       webbkollStatus = 500;
     }
